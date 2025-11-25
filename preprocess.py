@@ -1,3 +1,4 @@
+import random
 from Bio.Affy import CelFile
 
 import pydicom
@@ -12,6 +13,7 @@ import gzip
 import shutil
 import zlib
 import pysam
+import matplotlib.pyplot as plt
 
 def unzip_gz(fp):
     with gzip.open(fp, 'rb') as f_in:
@@ -67,8 +69,8 @@ def mimic_drop_duplicates():
                 print("something is wrong")
 
 path = "/Users/vanigupta/Documents/uf_digital_twin/mimic-iii-clinical-database-1.4"
-mimic_remove_males()
-mimic_drop_duplicates()
+# mimic_remove_males()
+# mimic_drop_duplicates()
 ####################################### hormonal time series data ######################################################################
 # TODO: handle any missing or duplicate data
 # TODO: determine and encode categorical data
@@ -76,37 +78,37 @@ mimic_drop_duplicates()
 # TODO: aggregate data and resample time intervals
 ########################################################################################################################################
 path = "/Users/vanigupta/Documents/uf_digital_twin/GSE32222_RAW"
-for file in os.listdir(path):
-    fp = f'{path}/{file}'
-    if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
-        unzip_gz(fp)
-    elif file.split(".")[-1] == "txt":
-        with open(fp, 'rb') as f:
-            content = f.read()
-    elif file.split(".")[-1] == "bam":
-        bamfile = pysam.AlignmentFile(fp, 'rb')
-        for read in bamfile.fetch():
-            print(read.reference_name)
-            print(read.reference_start)
-        bamfile.close()
-    else:
-        print(file)
+# for file in os.listdir(path):
+#     fp = f'{path}/{file}'
+#     if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
+#         unzip_gz(fp)
+#     elif file.split(".")[-1] == "txt":
+#         with open(fp, 'rb') as f:
+#             content = f.read()
+#     elif file.split(".")[-1] == "bam":
+#         bamfile = pysam.AlignmentFile(fp, 'rb')
+#         for read in bamfile.fetch():
+#             print(read.reference_name)
+#             print(read.reference_start)
+#         bamfile.close()
+#     else:
+#         print(file)
 ####################################### uf-specific data ###############################################################################
 # genetic data
 ########################################################################################################################################
-path = "/Users/vanigupta/Documents/uf_digital_twin/GSE30673_RAW"
-for file in os.listdir(path):
-    fp = f'{path}/{file}'
-    if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
-        unzip_gz(fp)
-    elif file.split(".")[-1] == "CEL":
-        try:
-            with open(fp, 'rb') as cel_file:
-                c = CelFile.read(cel_file)
-        except:
-            print(f"{file} not working") # GSM760701.CEL, GSM760703.CEL
-    else:
-        print(file)
+# path = "/Users/vanigupta/Documents/uf_digital_twin/GSE30673_RAW"
+# for file in os.listdir(path):
+#     fp = f'{path}/{file}'
+#     if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
+#         unzip_gz(fp)
+#     elif file.split(".")[-1] == "CEL":
+#         try:
+#             with open(fp, 'rb') as cel_file:
+#                 c = CelFile.read(cel_file)
+#         except:
+#             print(f"{file} not working") # GSM760701.CEL, GSM760703.CEL
+#     else:
+#         print(file)
 
 # ####################################### mri imaging data ###############################################################################
 # # DICOM header file contains this info: (a) Patient (b) Study (c) Series (d) Image
@@ -118,41 +120,113 @@ delete = ['113_seq.nii', '050_seq.nii', '061_seq.nii', '059_seq.nii', '200_seq.n
 '139_seq.nii', '164_seq.nii', '127_seq.nii', '054_seq.nii', '062_seq.nii', '037_seg.nii', '063_seq.nii', '064_seq.nii', 
 '090_seq.nii', '055_seq.nii', '070_seq.nii', '079_seq.nii', '046_seq.nii', '085_seq.nii', '071_seq.nii', '076_seq.nii', 
 '195_seq.nii', '157_seq.nii', '156_seq.nii']
-for folder in os.listdir(path):
-    next_path = f'{path}/{folder}'
-    if folder == ".DS_Store":
-        continue
-    for file in os.listdir(next_path):
-        fp = os.path.join(next_path, file)
-        if file == ".DS_Store":
-            continue
-        elif file.split(".")[-1] == "dcm":
-            ds = dcmread(fp, force=True)
-        # elif file.split(".")[-1] == "gz": # no need to run/unzip more than once
-        #     try:
-        #         unzip_gz(fp)
-        #     except Exception as error:
-        #         with open(fp, "rb") as f:
-        #             content = f.read(16)
-        #             if '000000000' not in content.hex(): # check if .gz file is salvagable
-        #                 print(file)
-        #             else:
-        #                 num = file.split("_")[-2]
-        #                 idx = file.index(num)
-        #                 delete.append(file[idx:-3])
-        elif not os.path.isdir(fp) and file.split(".")[-1] == "nii":
-            # print(file[-11:])
-            if file[-11:] in delete: # make sure there are no longer any empty .nii files
-                print(f'deleting {file}')
-                os.remove(fp)
-                continue
-            try:
-                nii = nib.load(fp)
-                img = nii.get_fdata()
-            except Exception as error: # find remaining empty fles or other exceptions
-                print(f'{file}: {error}')
-            if file[-8:] == "_seg.nii": # retrieve labels
-                # print(nii.header)
-                print(np.unique(img)) # check that remaining files are usable
-        # else: # just folders, .gz, and .DStore
-        #     print(f'{fp} unhandled')
+# for folder in os.listdir(path):
+#     next_path = f'{path}/{folder}'
+#     if folder == ".DS_Store":
+#         continue
+#     for file in os.listdir(next_path):
+#         fp = os.path.join(next_path, file)
+#         if file == ".DS_Store":
+#             continue
+#         elif file.split(".")[-1] == "dcm":
+#             ds = pydicom.read_file(fp, force=True)
+#             img = ds.pixel_array
+#             plt.imshow(img, cmap='gray')
+#         # elif file.split(".")[-1] == "gz": # no need to run/unzip more than once
+#         #     try:
+#         #         unzip_gz(fp)
+#         #     except Exception as error:
+#         #         with open(fp, "rb") as f:
+#         #             content = f.read(16)
+#         #             if '000000000' not in content.hex(): # check if .gz file is salvagable
+#         #                 print(file)
+#         #             else:
+#         #                 num = file.split("_")[-2]
+#         #                 idx = file.index(num)
+#         #                 delete.append(file[idx:-3]) # copied contents to delete arr above
+#         elif not os.path.isdir(fp) and file.split(".")[-1] == "nii":
+#             # print(file[-11:])
+#             if file[-11:] in delete: # make sure there are no longer any empty .nii files
+#                 print(f'deleting {file}')
+#                 os.remove(fp)
+#                 continue
+#             try:
+#                 nii = nib.load(fp)
+#                 img = nii.get_fdata()
+#             except Exception as error: # find remaining empty fles or other exceptions
+#                 print(f'{file}: {error}')
+#             if file[-8:] == "_seg.nii": # retrieve labels
+#                 # print(nii.header)
+#                 vals = np.unique(img) # check that remaining files are usable
+#         # else: # just folders, .gz, and .DStore
+#         #     print(f'{fp} unhandled')
+
+
+def generate_hormonal_timeseries():
+    np.random.seed(42)
+
+    n_users = 100
+
+    user_ids = [f"user_{i+1}" for i in range(n_users)]
+    cycle_lengths = np.random.randint(26, 37, size=n_users)
+
+    diagnoses = np.random.choice(["PCOS", "fibroids", "normal"], size=n_users, p=[0.2, 0.3, 0.5])
+
+    records = []
+    for user_id, cycle_len, dx in zip(user_ids, cycle_lengths, diagnoses):
+        menstrual_len = np.random.randint(4,7)
+        follicular_len = menstrual_len + np.random.randint(7,14)
+        ovulation_len = follicular_len + np.random.randint(3,5)
+        remaining_luteal = cycle_len - ovulation_len
+        early_luteal_len = ovulation_len + int(0.5 * remaining_luteal)
+        late_luteal_len = cycle_len
+
+        for day in range(1, cycle_len + 1):
+            # simulate hormone values based on phase
+            if day <= menstrual_len:
+                estradiol = 20 + np.random.normal(0, 2)
+                progesterone = 0.3 + np.random.normal(0, 0.1)
+                phase = "menstruation"
+            elif day <= follicular_len:
+                estradiol = 30 + 10 * np.sin(day / follicular_len * np.pi) + np.random.normal(0, 3)
+                progesterone = 0.5 + np.random.normal(0, 0.2)
+                phase = "follicular"
+            elif day <= ovulation_len:
+                phase = "ovulation"
+                estradiol = 100 + np.random.normal(0, 5)
+                progesterone = 1.5 + np.random.normal(0, 0.5)
+            elif day <= early_luteal_len:
+                phase = "early_luteal"
+                estradiol = 60 + np.random.normal(0, 3)
+                progesterone = 10 + np.random.normal(0, 1)
+            else:
+                phase = "late_luteal"
+                estradiol = 40 + np.random.normal(0, 2)
+                progesterone = 6 + np.random.normal(0, 1)
+
+            # fibroid-specific elevated estrogen plateau
+            if dx == "fibroids" and phase in ["follicular", "menstruation"]:
+                estradiol += 10
+                
+            estrone = 0.5 * estradiol + np.random.normal(0, 2)
+            testosterone = 0.4 + 0.1 * np.sin((day - 7) / cycle_len * 2 * np.pi) + np.random.normal(0, 0.02)
+            hcg = 0 + np.random.normal(0, 0.05)
+
+            records.append({
+                "User ID": user_id,
+                "Day": day,
+                "Cycle Length": cycle_len,
+                "Cycle Phase": phase,
+                "Diagnosis": dx,
+                "Estradiol (E2)": estradiol,
+                "Estrone (E1)": estrone,
+                "Progesterone": progesterone,
+                "Testosterone": testosterone,
+                "HCG": hcg
+            })
+
+    df = pd.DataFrame(records)
+    output_path = "simulated_hormone_cycles.csv"
+    df.to_csv(output_path, index=False)
+
+generate_hormonal_timeseries()
