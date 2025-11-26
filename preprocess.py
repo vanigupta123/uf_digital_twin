@@ -1,4 +1,5 @@
 import random
+import sys
 from Bio.Affy import CelFile
 
 import pydicom
@@ -14,6 +15,7 @@ import shutil
 import zlib
 import pysam
 import matplotlib.pyplot as plt
+from skimage.transform import resize
 
 def unzip_gz(fp):
     with gzip.open(fp, 'rb') as f_in:
@@ -72,96 +74,8 @@ path = "/Users/vanigupta/Documents/uf_digital_twin/mimic-iii-clinical-database-1
 # mimic_remove_males()
 # mimic_drop_duplicates()
 ####################################### hormonal time series data ######################################################################
-# TODO: handle any missing or duplicate data
-# TODO: determine and encode categorical data
-# TODO: standardize and normalize
-# TODO: aggregate data and resample time intervals
+# made my own data :p
 ########################################################################################################################################
-path = "/Users/vanigupta/Documents/uf_digital_twin/GSE32222_RAW"
-# for file in os.listdir(path):
-#     fp = f'{path}/{file}'
-#     if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
-#         unzip_gz(fp)
-#     elif file.split(".")[-1] == "txt":
-#         with open(fp, 'rb') as f:
-#             content = f.read()
-#     elif file.split(".")[-1] == "bam":
-#         bamfile = pysam.AlignmentFile(fp, 'rb')
-#         for read in bamfile.fetch():
-#             print(read.reference_name)
-#             print(read.reference_start)
-#         bamfile.close()
-#     else:
-#         print(file)
-####################################### uf-specific data ###############################################################################
-# genetic data
-########################################################################################################################################
-# path = "/Users/vanigupta/Documents/uf_digital_twin/GSE30673_RAW"
-# for file in os.listdir(path):
-#     fp = f'{path}/{file}'
-#     if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
-#         unzip_gz(fp)
-#     elif file.split(".")[-1] == "CEL":
-#         try:
-#             with open(fp, 'rb') as cel_file:
-#                 c = CelFile.read(cel_file)
-#         except:
-#             print(f"{file} not working") # GSM760701.CEL, GSM760703.CEL
-#     else:
-#         print(file)
-
-# ####################################### mri imaging data ###############################################################################
-# # DICOM header file contains this info: (a) Patient (b) Study (c) Series (d) Image
-# # seg files contain the label: (1) uterine wall, (2) uterine cavity, (3) myoma, or (4) nabothian cyst
-# ########################################################################################################################################
-path = "/Users/vanigupta/Documents/uf_digital_twin/UMD"
-delete = ['113_seq.nii', '050_seq.nii', '061_seq.nii', '059_seq.nii', '200_seq.nii', '060_seq.nii', '241_seq.nii', 
-'074_seq.nii', '045_seq.nii', '222_seq.nii', '249_seq.nii', '088_seq.nii', '086_seq.nii', '130_seq.nii', '106_seq.nii', 
-'139_seq.nii', '164_seq.nii', '127_seq.nii', '054_seq.nii', '062_seq.nii', '037_seg.nii', '063_seq.nii', '064_seq.nii', 
-'090_seq.nii', '055_seq.nii', '070_seq.nii', '079_seq.nii', '046_seq.nii', '085_seq.nii', '071_seq.nii', '076_seq.nii', 
-'195_seq.nii', '157_seq.nii', '156_seq.nii']
-# for folder in os.listdir(path):
-#     next_path = f'{path}/{folder}'
-#     if folder == ".DS_Store":
-#         continue
-#     for file in os.listdir(next_path):
-#         fp = os.path.join(next_path, file)
-#         if file == ".DS_Store":
-#             continue
-#         elif file.split(".")[-1] == "dcm":
-#             ds = pydicom.read_file(fp, force=True)
-#             img = ds.pixel_array
-#             plt.imshow(img, cmap='gray')
-#         # elif file.split(".")[-1] == "gz": # no need to run/unzip more than once
-#         #     try:
-#         #         unzip_gz(fp)
-#         #     except Exception as error:
-#         #         with open(fp, "rb") as f:
-#         #             content = f.read(16)
-#         #             if '000000000' not in content.hex(): # check if .gz file is salvagable
-#         #                 print(file)
-#         #             else:
-#         #                 num = file.split("_")[-2]
-#         #                 idx = file.index(num)
-#         #                 delete.append(file[idx:-3]) # copied contents to delete arr above
-#         elif not os.path.isdir(fp) and file.split(".")[-1] == "nii":
-#             # print(file[-11:])
-#             if file[-11:] in delete: # make sure there are no longer any empty .nii files
-#                 print(f'deleting {file}')
-#                 os.remove(fp)
-#                 continue
-#             try:
-#                 nii = nib.load(fp)
-#                 img = nii.get_fdata()
-#             except Exception as error: # find remaining empty fles or other exceptions
-#                 print(f'{file}: {error}')
-#             if file[-8:] == "_seg.nii": # retrieve labels
-#                 # print(nii.header)
-#                 vals = np.unique(img) # check that remaining files are usable
-#         # else: # just folders, .gz, and .DStore
-#         #     print(f'{fp} unhandled')
-
-
 def generate_hormonal_timeseries():
     np.random.seed(42)
 
@@ -207,7 +121,7 @@ def generate_hormonal_timeseries():
             # fibroid-specific elevated estrogen plateau
             if dx == "fibroids" and phase in ["follicular", "menstruation"]:
                 estradiol += 10
-                
+
             estrone = 0.5 * estradiol + np.random.normal(0, 2)
             testosterone = 0.4 + 0.1 * np.sin((day - 7) / cycle_len * 2 * np.pi) + np.random.normal(0, 0.02)
             hcg = 0 + np.random.normal(0, 0.05)
@@ -228,5 +142,103 @@ def generate_hormonal_timeseries():
     df = pd.DataFrame(records)
     output_path = "simulated_hormone_cycles.csv"
     df.to_csv(output_path, index=False)
+####################################### uf-specific data ###############################################################################
+# genetic data
+########################################################################################################################################
+# path = "/Users/vanigupta/Documents/uf_digital_twin/GSE30673_RAW"
+# for file in os.listdir(path):
+#     fp = f'{path}/{file}'
+#     if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
+#         unzip_gz(fp)
+#     elif file.split(".")[-1] == "CEL":
+#         try:
+#             with open(fp, 'rb') as cel_file:
+#                 c = CelFile.read(cel_file)
+#         except:
+#             print(f"{file} not working") # GSM760701.CEL, GSM760703.CEL
+#     else:
+#         print(file)
+
+# ####################################### mri imaging data ###############################################################################
+# # DICOM header file contains this info: (a) Patient (b) Study (c) Series (d) Image
+# # seg files contain the label: (1) uterine wall, (2) uterine cavity, (3) myoma, or (4) nabothian cyst
+# ########################################################################################################################################
+def extract_mri_data():
+    path = "/Users/vanigupta/Documents/uf_digital_twin/UMD"
+    count = 0
+    patient_records = []
+
+    for patient_id in os.listdir(path):
+        patient_path = os.path.join(path, patient_id)
+        if not os.path.isdir(patient_path) or patient_id.startswith('.'):
+            continue
+        
+        patient_id = patient_id.split("_")[-1]
+        record = {
+            "patient_id": patient_id,
+            "patient_weight": None,
+            "labels": [],
+            "fibroid_present": False,
+            "downsampled_shape": None
+        }
+
+        for file in os.listdir(patient_path):
+            fp = os.path.join(patient_path, file)
+
+            if file.endswith(".dcm") and record["patient_weight"] is None:
+                try:
+                    ds = pydicom.dcmread(fp, stop_before_pixels=True)
+                    record["patient_weight"] = float(getattr(ds, "PatientWeight", None))
+                except:
+                    pass
+            elif file.endswith("_t2.nii"):
+                try:
+                    t2 = nib.load(fp)
+                    t2_data = t2.get_fdata()
+                except:
+                    pass
+            elif file.endswith("_seg.nii"):
+                try:
+                    seg = nib.load(fp)
+                    seg_data = seg.get_fdata()
+                    labels = np.unique(seg_data).astype(int).tolist()
+                    record["labels"] = labels
+                    if 3 in labels:
+                        record["fibroid_present"] = True
+                except:
+                    pass
+
+        # downsample
+        if t2_data is not None and seg_data is not None:
+            try:
+                target_shape = (128, 128, 5)
+                t2_down = resize(t2_data, target_shape, order=1, anti_aliasing=True)
+                seg_down = resize(seg_data, target_shape, order=0, preserve_range=True).astype(np.uint8)
+
+                # z-score normalization
+                std = np.std(t2_down)
+                # avoid division by zero in case the volume is constant
+                if std > 1e-6:
+                    t2_down = (t2_down - np.mean(t2_down)) / std
+                else:
+                    t2_down = t2_down - np.mean(t2_down)  # mean-center if std is too small
+
+                np.save(f"{patient_id}_t2_downsampled.npy", t2_down)
+                np.save(f"{patient_id}_seg_downsampled.npy", seg_down)
+
+                record["downsampled_shape"] = list(t2_down.shape)
+            except Exception as e:
+                print(f"[DOWNSAMPLE ERROR] {patient_id}: {e}")
+
+        patient_records.append(record)
+        count += 1
+        print(count)
+
+    df = pd.DataFrame(patient_records)
+    df.to_csv("umd_data_output.csv", index=False)
+
 
 generate_hormonal_timeseries()
+extract_mri_data()
+# df_small = pd.read_csv("mri_vectors.csv", nrows=1000)
+# df_small.to_csv("mri_vectors_small.csv", index=False)
