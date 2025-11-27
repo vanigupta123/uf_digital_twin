@@ -15,64 +15,15 @@ import shutil
 import zlib
 import pysam
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
 from skimage.transform import resize
+from skimage.measure import label
 
 def unzip_gz(fp):
     with gzip.open(fp, 'rb') as f_in:
         with open(fp[:-3], 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)
             os.remove(fp)
-####################################### general clinical data ##########################################################################
-# TODO: determine and encode categorical data
-# TODO: standardize and normalize
-########################################################################################################################################
-def mimic_remove_males():
-    patients = pd.read_csv(f'{path}/PATIENTS.csv')
-    males = patients["SUBJECT_ID"][patients["GENDER"] == "M"].tolist() # contains SUBJECT_ID of male patients
-    check_males = patients["SUBJECT_ID"][patients.GENDER == 'M'].tolist()
-    print(len(check_males) == len(males)) # sanity check
-
-    for file in os.listdir(path):
-        fp = f'{path}/{file}'
-        if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
-            with gzip.open(fp, 'rb') as f_in:
-                with open(fp[:-3], 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-                    os.remove(fp)
-        elif file.split(".")[-1] == "csv" and file[-6:] != "_0.csv": # should not repeat infinitely
-            cols = pd.read_csv(fp, nrows=0).columns.values.tolist() # pd.read_csv().columns.values returns np.ndarray
-            new_fp = f'{path}/{file.split(".")[0]}_0.csv'
-            if "SUBJECT_ID" in cols:
-                df = pd.DataFrame(columns=cols)
-                df.to_csv(new_fp, index=False, mode='w')
-                for chunk in pd.read_csv(fp, chunksize=1000): 
-                    print("chunking")
-                    filtered = chunk[~chunk["SUBJECT_ID"].isin(males)] # only reads subject id's corresponding to female patients
-                    filtered.to_csv(new_fp, index=False, mode='a', header=False)
-            # csv's without subject information: D_CPT, D_ITEMS, CAREGIVERS, D_LABITEMS, D_ICD_DIAGNOSES, D_ICD_PROCEDURES
-        else:
-            print(file)
-
-def mimic_drop_duplicates():
-    # drop duplicates
-    for file in os.listdir(path):
-        if file[-6:] == "_0.csv":
-            fp = f'{path}/{file}'
-            print(file)
-            df = pd.read_csv(fp, low_memory=False) # pyarrow reads csv rows poorly and mistakes commas within entries as a new column
-            initial = len(df["SUBJECT_ID"])
-            df = df.drop_duplicates()
-            if len(df["SUBJECT_ID"]) < initial:
-                print("writing")
-                df.to_csv(fp)
-            elif len(df["SUBJECT_ID"]) == initial:
-                print("do nothing")
-            else:
-                print("something is wrong")
-
-path = "/Users/vanigupta/Documents/uf_digital_twin/mimic-iii-clinical-database-1.4"
-# mimic_remove_males()
-# mimic_drop_duplicates()
 ####################################### hormonal time series data ######################################################################
 # made my own data :p
 ########################################################################################################################################
@@ -127,42 +78,95 @@ def generate_hormonal_timeseries():
             hcg = 0 + np.random.normal(0, 0.05)
 
             records.append({
-                "User ID": user_id,
-                "Day": day,
-                "Cycle Length": cycle_len,
-                "Cycle Phase": phase,
-                "Diagnosis": dx,
-                "Estradiol (E2)": estradiol,
-                "Estrone (E1)": estrone,
-                "Progesterone": progesterone,
-                "Testosterone": testosterone,
+                "user id": user_id,
+                "day": day,
+                "cycle length": cycle_len,
+                "cycle phase": phase,
+                "diagnosis": dx,
+                "estradiol (E2)": estradiol,
+                "estrone (E1)": estrone,
+                "progesterone": progesterone,
+                "testosterone": testosterone,
                 "HCG": hcg
             })
 
     df = pd.DataFrame(records)
-    output_path = "simulated_hormone_cycles.csv"
-    df.to_csv(output_path, index=False)
-####################################### uf-specific data ###############################################################################
-# genetic data
-########################################################################################################################################
-# path = "/Users/vanigupta/Documents/uf_digital_twin/GSE30673_RAW"
-# for file in os.listdir(path):
-#     fp = f'{path}/{file}'
-#     if not os.path.isdir(fp) and file.split(".")[-1] == "gz":
-#         unzip_gz(fp)
-#     elif file.split(".")[-1] == "CEL":
-#         try:
-#             with open(fp, 'rb') as cel_file:
-#                 c = CelFile.read(cel_file)
-#         except:
-#             print(f"{file} not working") # GSM760701.CEL, GSM760703.CEL
-#     else:
-#         print(file)
 
+    # normalize
+    hormone_cols = ["estradiol (E2)", "estrone (E1)", "progesterone", "testosterone", "HCG"]
+    df[hormone_cols] = (df[hormone_cols] - df[hormone_cols].mean()) / df[hormone_cols].std()
+
+    df_encoded = pd.get_dummies(df, columns=["cycle phase", "diagnosis"], dummy_na=True)
+
+
+    output_path = "simulated_hormone_cycles.csv"
+    df_encoded.to_csv(output_path, index=False)
 # ####################################### mri imaging data ###############################################################################
 # # DICOM header file contains this info: (a) Patient (b) Study (c) Series (d) Image
 # # seg files contain the label: (1) uterine wall, (2) uterine cavity, (3) myoma, or (4) nabothian cyst
 # ########################################################################################################################################
+def generate_synthetic_metadata(patients):
+    synthetic_records = []
+    age_order = {"18–29": 0, "30–44": 1, "45+": 2}
+    for patient in patients:
+        fib_count = patient.get("num_fibroids", 0)
+        fib_ratio = patient.get("fibroid_volume_ratio", 0.0)
+
+        if fib_count == 0:
+            pain = 0
+        elif fib_ratio < 0.4:
+            pain = min(8, int(np.random.rand()*fib_ratio*100))
+        else:
+            pain = random.randint(7, 10)
+
+        if fib_count == 0:
+            treatment = "none"
+        elif fib_ratio >= 0.4:
+            treatment = "surgery"
+        elif (fib_ratio > 0.2 and fib_ratio < 0.4) or pain > 5:
+            treatment = random.choices(["surgery", "hormonal"], weights=[0.7, 0.3])[0]
+        else:
+            treatment = random.choices(["hormonal", "none"], weights=[0.8, 0.2])[0]
+
+        # if hormonal
+        hormonal_mods = ["estrogen decreased", "progesterone increased", "GnRH agonist"]
+        hormonal_mod = random.choice(hormonal_mods) if treatment == "hormonal" else None
+
+        # is this relevant?
+        ethnicity = random.choices(
+            ["White", "Black", "Asian", "Hispanic", "Other"],
+            weights=[0.25, 0.25, 0.20, 0.20, 0.10]
+        )[0]
+
+        age_group = random.choices(["18–29", "30–44", "45+"], weights=[0.3, 0.5, 0.2])[0]
+
+        prior_preg = random.random() < 0.6 if age_group != "18–29" else random.random() < 0.3
+
+        patient.update({
+            "pain_level": pain,
+            "treatment_type": treatment,
+            "hormonal_mod": hormonal_mod,
+            "ethnicity": ethnicity,
+            "age_group": age_group,
+            "age_group_encoded": age_order[age_group],
+            "prior_pregnancy": prior_preg
+        })
+        synthetic_records.append(patient)
+
+    df = pd.DataFrame(synthetic_records)
+
+    # normalize
+    scaler = StandardScaler()
+    df[["pain_level", "num_fibroids", "fibroid_volume_ratio"]] = scaler.fit_transform(
+        df[["pain_level", "num_fibroids", "fibroid_volume_ratio"]]
+    )
+
+    df_encoded = pd.get_dummies(df, columns=[
+        "treatment_type", "ethnicity", "prior_pregnancy", "hormonal_mod"
+    ], dummy_na=True)
+
+    return df_encoded
+
 def extract_mri_data():
     path = "/Users/vanigupta/Documents/uf_digital_twin/UMD"
     count = 0
@@ -179,6 +183,8 @@ def extract_mri_data():
             "patient_weight": None,
             "labels": [],
             "fibroid_present": False,
+            "num_fibroids": 0.0,
+            "fibroid_volume_ratio": 0.0,
             "downsampled_shape": None
         }
 
@@ -205,6 +211,18 @@ def extract_mri_data():
                     record["labels"] = labels
                     if 3 in labels:
                         record["fibroid_present"] = True
+                    
+                    fibroid_voxels = (seg_data == 3)
+                    labeled_regions = label(fibroid_voxels)
+                    num_fibroids = labeled_regions.max()  # number of disconnected regions / clusters
+
+                    fibroid_volume = np.sum(seg_data == 3)
+                    other_volume = np.sum((seg_data > 0) & (seg_data != 3))
+                    ratio = fibroid_volume / (fibroid_volume + other_volume + 1e-6)
+
+                    record["num_fibroids"] = num_fibroids
+                    record["fibroid_volume_ratio"] = ratio
+
                 except:
                     pass
 
@@ -223,8 +241,8 @@ def extract_mri_data():
                 else:
                     t2_down = t2_down - np.mean(t2_down)  # mean-center if std is too small
 
-                np.save(f"{patient_id}_t2_downsampled.npy", t2_down)
-                np.save(f"{patient_id}_seg_downsampled.npy", seg_down)
+                np.save(f"umd_np_arrays/{patient_id}_t2_downsampled.npy", t2_down)
+                np.save(f"umd_np_arrays/{patient_id}_seg_downsampled.npy", seg_down)
 
                 record["downsampled_shape"] = list(t2_down.shape)
             except Exception as e:
@@ -232,13 +250,11 @@ def extract_mri_data():
 
         patient_records.append(record)
         count += 1
-        print(count)
 
-    df = pd.DataFrame(patient_records)
-    df.to_csv("umd_data_output.csv", index=False)
+    df = generate_synthetic_metadata(patient_records)
+    df.to_csv("umd_data_categorical.csv", index=False)
 
+# ########################################################################################################################################
 
 generate_hormonal_timeseries()
 extract_mri_data()
-# df_small = pd.read_csv("mri_vectors.csv", nrows=1000)
-# df_small.to_csv("mri_vectors_small.csv", index=False)
