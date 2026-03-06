@@ -25,8 +25,6 @@ def unzip_gz(fp):
             shutil.copyfileobj(f_in, f_out)
             os.remove(fp)
 ####################################### hormonal time series data ######################################################################
-# made my own data :p
-########################################################################################################################################
 def generate_hormonal_timeseries():
     np.random.seed(42)
 
@@ -101,10 +99,8 @@ def generate_hormonal_timeseries():
 
     output_path = "simulated_hormone_cycles.csv"
     df_encoded.to_csv(output_path, index=False)
-# ####################################### mri imaging data ###############################################################################
-# # DICOM header file contains this info: (a) Patient (b) Study (c) Series (d) Image
-# # seg files contain the label: (1) uterine wall, (2) uterine cavity, (3) myoma, or (4) nabothian cyst
-# ########################################################################################################################################
+
+# ####################################### generate synthetic metadata #######################################################################
 def generate_synthetic_metadata(patients):
     synthetic_records = []
     age_order = {"18–29": 0, "30–44": 1, "45+": 2}
@@ -167,10 +163,17 @@ def generate_synthetic_metadata(patients):
 
     return df_encoded
 
+# ####################################### mri imaging data ###############################################################################
+# # DICOM header file contains this info: (a) Patient (b) Study (c) Series (d) Image
+# # seg files contain the label: (1) uterine wall, (2) uterine cavity, (3) myoma, or (4) nabothian cyst
+# ########################################################################################################################################
+
 def extract_mri_data():
     path = "/Users/vanigupta/Documents/uf_digital_twin/UMD"
     count = 0
     patient_records = []
+    t2_data = None
+    seg_data = None
 
     for patient_id in os.listdir(path):
         patient_path = os.path.join(path, patient_id)
@@ -195,13 +198,13 @@ def extract_mri_data():
                 try:
                     ds = pydicom.dcmread(fp, stop_before_pixels=True)
                     record["patient_weight"] = float(getattr(ds, "PatientWeight", None))
-                except:
+                except Exception as e:
                     pass
             elif file.endswith("_t2.nii"):
                 try:
                     t2 = nib.load(fp)
                     t2_data = t2.get_fdata()
-                except:
+                except Exception as e:
                     pass
             elif file.endswith("_seg.nii"):
                 try:
@@ -223,7 +226,7 @@ def extract_mri_data():
                     record["num_fibroids"] = num_fibroids
                     record["fibroid_volume_ratio"] = ratio
 
-                except:
+                except Exception as e:
                     pass
 
         # downsample
