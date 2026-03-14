@@ -91,8 +91,9 @@ def generate_hormonal_timeseries():
     df = pd.DataFrame(records)
 
     # normalize
-    hormone_cols = ["estradiol (E2)", "estrone (E1)", "progesterone", "testosterone", "HCG"]
-    df[hormone_cols] = (df[hormone_cols] - df[hormone_cols].mean()) / df[hormone_cols].std()
+    # hormone_cols = ["estradiol (E2)", "estrone (E1)", "progesterone", "testosterone", "HCG"]
+    # df[hormone_cols] = (df[hormone_cols] - df[hormone_cols].mean()) / df[hormone_cols].std()
+    # shouldn't normalize before splitting -- will cause data leakage / distribution shift
 
     df_encoded = pd.get_dummies(df, columns=["cycle phase", "diagnosis"], dummy_na=True)
 
