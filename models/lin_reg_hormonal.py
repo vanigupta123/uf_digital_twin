@@ -9,7 +9,6 @@ def normalize(df, cols):
 # x = current estrogen, progesterone, all other inputs
 # y = estrogen(t+1)
 def preprocess(dataset, hormone_t, hormone_tplus1):
-    header = dataset.iloc[0]
     # write new column estrogen(t+1)
     dataset[hormone_tplus1] = dataset[hormone_t].shift(-1)
     # find the last row of each user id and set the estrogen(t+1) and progesterone(t+1) to the first day's value
@@ -20,22 +19,19 @@ def preprocess(dataset, hormone_t, hormone_tplus1):
     # split by numeric user id
     user_num = dataset['user id'].str.extract(r'user_(\d+)', expand=False).astype(int)
     dataset = dataset.drop(columns=['user id']) # for lin reg
-    train_x = dataset[user_num <= 60]
-    test_x = dataset[(user_num > 60) & (user_num <= 80)]
-    val_x = dataset[user_num > 80]
+    train_x = dataset[user_num <= 80]
+    test_x = dataset[user_num > 80]
 
     # normalize
     hormone_cols = ["estradiol (E2)", "estrone (E1)", "progesterone", "testosterone", "HCG", hormone_tplus1]
     train_x[hormone_cols] = normalize(train_x, hormone_cols)
     test_x[hormone_cols] = normalize(test_x, hormone_cols)
-    val_x[hormone_cols] = normalize(val_x, hormone_cols)
 
     # separate into x and y
     train_y = train_x.pop(hormone_tplus1)
     test_y = test_x.pop(hormone_tplus1)
-    val_y = val_x.pop(hormone_tplus1)
 
-    return train_x, train_y, test_x, test_y, val_x, val_y
+    return train_x, train_y, test_x, test_y
 
 
 def train(train_x, train_y):
