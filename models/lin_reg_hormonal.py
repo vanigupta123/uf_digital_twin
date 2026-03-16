@@ -1,5 +1,6 @@
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+import sklearn.metrics
 import matplotlib.pyplot as plt
 
 def normalize(df, cols):
@@ -8,6 +9,7 @@ def normalize(df, cols):
 # x = current estrogen, progesterone, all other inputs
 # y = estrogen(t+1)
 def preprocess(dataset, hormone_t, hormone_tplus1):
+    header = dataset.iloc[0]
     # write new column estrogen(t+1)
     dataset[hormone_tplus1] = dataset[hormone_t].shift(-1)
     # find the last row of each user id and set the estrogen(t+1) and progesterone(t+1) to the first day's value
@@ -36,32 +38,38 @@ def preprocess(dataset, hormone_t, hormone_tplus1):
     return train_x, train_y, test_x, test_y, val_x, val_y
 
 
-def predict(train_x, train_y):
+def train(train_x, train_y):
     # implement lin reg
     model = LinearRegression()
     model.fit(train_x, train_y)
-    y_pred = model.predict(train_x)
-    # return y_pred
+    return model
 
-    # print loss curve, mae, rmse, r2
-    plt.figure(figsize=(8,6)) 
-    plt.scatter(train_x['estradiol (E2)'], train_y, color='blue', label='Data Points') 
-    plt.plot(train_x['estradiol (E2)'], y_pred, color='red', linewidth=2, label='Regression Line') 
-    plt.title('Linear Regression')
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    plt.legend()
-    plt.grid(True)
+def predict(model, test_x, test_y):
+    y_pred = model.predict(test_x)
+    r2 = model.score(test_x, test_y)
+    mae = sklearn.metrics.mean_absolute_error(test_y, y_pred)
+    rmse = sklearn.metrics.root_mean_squared_error(test_y, y_pred)
+    print(f"r2 = {r2}")
+    # plot mae
+    plt.figure(figsize=(8, 5))
+    plt.bar(['MAE'], [mae], color='skyblue')
+    plt.ylabel("Mean Absolute Error")
+    plt.title("Mean Absolute Error (MAE) on Test Set")
+    plt.show()
+    # plot rmse
+    plt.figure(figsize=(8, 5))
+    plt.bar(['RMSE'], [rmse], color='lightpink')
+    plt.ylabel("RMSE")
+    plt.title("RMSE on Test Set")
     plt.show()
 
-# print accuracy, precision, recall, F1, ROC-AUC
-
-# do the same for progesterone(t+1)
 
 dataset = pd.read_csv("simulated_hormone_cycles.csv")
 x_train, y_train, x_test, y_test, x_val, y_val = preprocess(dataset, 'estradiol (E2)', 'estrogen(t+1)')
-predict(x_train, y_train)
+model_estrogen = train(x_train, y_train)
+predict(model_estrogen, x_test, y_test)
 
 x_train, y_train, x_test, y_test, x_val, y_val = preprocess(dataset, 'progesterone', 'progesterone(t+1)')
-predict(x_train, y_train)
+model_progesterone = train(x_train, y_train)
+predict(model_progesterone, x_test, y_test)
 
