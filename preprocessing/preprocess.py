@@ -1,6 +1,6 @@
 import random
 import sys
-from Bio.Affy import CelFile
+# from Bio.Affy import CelFile
 
 import pydicom
 from pydicom import dcmread
@@ -112,9 +112,12 @@ def generate_synthetic_metadata(patients):
         if fib_count == 0:
             pain = 0
         elif fib_ratio < 0.4:
-            pain = min(8, int(np.random.rand()*fib_ratio*100))
+            # mild-moderate: pain skewed toward lower values but occasionally higher
+            pain = int(np.random.beta(2, 5) * 10)
         else:
-            pain = random.randint(7, 10)
+            # severe: pain skewed toward higher values
+            pain = int(np.random.beta(5, 2) * 10)
+        pain = min(10, max(0, pain))
 
         if fib_count == 0:
             treatment = "none"
@@ -129,7 +132,7 @@ def generate_synthetic_metadata(patients):
         hormonal_mods = ["estrogen decreased", "progesterone increased", "GnRH agonist"]
         hormonal_mod = random.choice(hormonal_mods) if treatment == "hormonal" else None
 
-        # is this relevant?
+        # black women more likely to have fibroids
         ethnicity = random.choices(
             ["White", "Black", "Asian", "Hispanic", "Other"],
             weights=[0.25, 0.25, 0.20, 0.20, 0.10]
@@ -139,10 +142,42 @@ def generate_synthetic_metadata(patients):
 
         prior_preg = random.random() < 0.6 if age_group != "18–29" else random.random() < 0.3
 
+        # ferritin_proxy: missing ~40% of rows (requires blood draw)
+        if random.random() < 0.4:
+            patient["ferritin_proxy"] = None  # genuinely missing / no blood draw
+        else:
+            # low ferritin is associated with heavy bleeding / fibroids
+            patient["ferritin_proxy"] = round(random.gauss(
+                25 if fib_ratio > 0.3 else 45, 12
+            ), 1)
+
+        if random.random() < 0.05:
+            patient["cycle_length_days"] = None
+        elif fib_ratio > 0.3:
+            patient["cycle_length_days"] = round(random.gauss(35, 5), 0)
+        else:
+            patient["cycle_length_days"] = round(random.gauss(28, 5), 0)
+        patient["cycle_length_days"] = None if patient["cycle_length_days"] is None else min(60, max(18, patient["cycle_length_days"]))
+
+        if random.random() < 0.25:
+            patient["flow_intensity"] = None
+        elif fib_ratio > 0.3:
+            patient["flow_intensity"] = random.choices(["moderate", "heavy", "very_heavy"], weights=[0.1, 0.5, 0.4])[0]
+        else:
+            patient["flow_intensity"] = random.choices(["light", "moderate", "heavy"], weights=[0.2, 0.5, 0.3])[0]
+
+        if random.random() < 0.3:
+            patient["symptom_duration_months"] = None
+        elif patient["fibroid_present"]:
+            patient["symptom_duration_months"] = random.gauss(18, 12)
+            patient["symptom_duration_months"] = min(120, max(0, patient["symptom_duration_months"]))
+        else:
+            patient["symptom_duration_months"] = 0
+
         patient.update({
             "pain_level": pain,
             "treatment_type": treatment,
-            "hormonal_mod": hormonal_mod,
+            # "hormonal_mod": hormonal_mod,
             "ethnicity": ethnicity,
             "age_group": age_group,
             "age_group_encoded": age_order[age_group],
@@ -151,19 +186,14 @@ def generate_synthetic_metadata(patients):
         synthetic_records.append(patient)
 
     df = pd.DataFrame(synthetic_records)
-
-    # normalize
-    scaler = StandardScaler()
-    df[["pain_level", "num_fibroids", "fibroid_volume_ratio"]] = scaler.fit_transform(
-        df[["pain_level", "num_fibroids", "fibroid_volume_ratio"]]
-    )
-
+    df["flow_intensity_missing"] = df["flow_intensity"].isna().astype(int)
     df_encoded = pd.get_dummies(df, columns=[
-        "treatment_type", "ethnicity", "prior_pregnancy", "hormonal_mod"
-    ], dummy_na=True)
+        "treatment_type", "ethnicity", 
+    # "prior_pregnancy", "hormonal_mod", 
+    #     "flow_intensity"
+    ])
 
     return df_encoded
-
 # ####################################### mri imaging data ###############################################################################
 # # DICOM header file contains this info: (a) Patient (b) Study (c) Series (d) Image
 # # seg files contain the label: (1) uterine wall, (2) uterine cavity, (3) myoma, or (4) nabothian cyst
@@ -260,5 +290,5 @@ def extract_mri_data():
 
 # ########################################################################################################################################
 
-generate_hormonal_timeseries()
 extract_mri_data()
+# generate_hormonal_timeseries()
