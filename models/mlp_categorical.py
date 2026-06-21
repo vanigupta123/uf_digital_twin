@@ -3,6 +3,7 @@ import sklearn
 import torch
 import matplotlib.pyplot as plt
 from torch import nn
+import json
 
 class Normalizer:
     def __init__(self):
@@ -20,18 +21,18 @@ def normalize(df, cols, normalizer):
 
 def preprocess(dataset):
     dataset["pain_level"] = dataset["pain_level"].astype(float)
-    dataset.drop(columns=['labels', 'downsampled_shape', 'flow_intensity', 'age_group'], inplace=True)
+    dataset.drop(columns=['labels', 'downsampled_shape', 'age_group'], inplace=True)
     user_num = dataset['patient_id'].astype(int)
     train_x = dataset[user_num <= 180].copy()
     val_x = dataset[(user_num > 180) & (user_num <= 240)].copy()
     test_x = dataset[user_num > 240].copy()
     datasets = [train_x, val_x, test_x]
 
-    # for ds in datasets:
-    #     no_fibroids = ds[ds['fibroid_present'] == True].shape[0]
-    #     fibroids_present = ds[(ds['fibroid_present'] == True) | (ds['fibroid_present'] == True)].shape[0]
-    #     ratio = no_fibroids / (no_fibroids + fibroids_present)
-    #     print(f"ratio = {ratio}")
+    for ds in datasets:
+        no_fibroids = ds[ds['fibroid_present'] == True].shape[0]
+        fibroids_present = ds[(ds['fibroid_present'] == True) | (ds['fibroid_present'] == True)].shape[0]
+        ratio = no_fibroids / (no_fibroids + fibroids_present)
+        print(f"ratio = {ratio}")
 
     # separate into x and y
     train_y = train_x.pop("fibroid_present")
@@ -47,6 +48,16 @@ def preprocess(dataset):
     val_x.loc[:, normalize_cols] = normalize(val_x, normalize_cols, normalizer)
     test_x.loc[:, normalize_cols] = normalize(test_x, normalize_cols, normalizer)
 
+    normalize_cols.append("num_fibroids")
+    normalize_cols.append("fibroid_volume_ratio")
+    normalize_cols.append("ferritin_proxy")
+    stats = {
+        "medians": train_x[normalize_cols].median().to_dict(),
+        "means": normalizer.mean.to_dict(),
+        "stds": normalizer.std.to_dict(),
+        "feature_columns": list(train_x.columns)
+    }
+    json.dump(stats, open("models/preprocessing_stats.json", "w"))
     return train_x, train_y, test_x, test_y, val_x, val_y
 
 
@@ -57,7 +68,7 @@ def train(X_train, y_train, X_val, y_val, epochs: int = 50):
     y_train_t = torch.as_tensor(y_train.to_numpy(), dtype=torch.float32).view(-1, 1)
     X_val_t = to_tensor(X_val, dtype=torch.float32)
     y_val_t = torch.as_tensor(y_val.to_numpy(), dtype=torch.float32).view(-1, 1)
-
+    print(X_train_t.shape[1])
     model = build_model(input_dim=X_train_t.shape[1]).to(device)
 
     criterion = nn.BCEWithLogitsLoss()
