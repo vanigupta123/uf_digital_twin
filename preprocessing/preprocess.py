@@ -165,7 +165,7 @@ def generate_synthetic_metadata(patients):
             patient["flow_intensity"] = random.choices(["moderate", "heavy", "very_heavy"], weights=[0.1, 0.5, 0.4])[0]
         else:
             patient["flow_intensity"] = random.choices(["light", "moderate", "heavy"], weights=[0.2, 0.5, 0.3])[0]
-
+        
         if random.random() < 0.3:
             patient["symptom_duration_months"] = None
         elif patient["fibroid_present"]:
@@ -186,7 +186,9 @@ def generate_synthetic_metadata(patients):
         synthetic_records.append(patient)
 
     df = pd.DataFrame(synthetic_records)
-    df["flow_intensity_missing"] = df["flow_intensity"].isna().astype(int)
+    df["flow_intensity"] = df["flow_intensity"].map({"light": 1, "moderate": 2, "heavy": 3, "very_heavy": 4})
+    df["flow_intensity"] = df["flow_intensity"].fillna(0)
+    df["flow_intensity_missing"] = df["flow_intensity"] == 0
     df_encoded = pd.get_dummies(df, columns=[
         "treatment_type", "ethnicity", 
     # "prior_pregnancy", "hormonal_mod", 
@@ -289,6 +291,93 @@ def extract_mri_data():
     df.to_csv("umd_data_categorical.csv", index=False)
 
 # ########################################################################################################################################
+def fibroid_growth_dataset():
+    cols = ["patient_id","patient_weight","num_fibroids","fibroid_volume_ratio","flow_intensity","symptom_duration_months","pain_level","age_group","age_group_encoded","prior_pregnancy","flow_intensity_missing","treatment_type_hormonal","treatment_type_none","treatment_type_surgery","ethnicity_Asian","ethnicity_Black","ethnicity_Hispanic","ethnicity_Other","ethnicity_White"]
+    # add time interval column and maybe join this dataset with the categorical dataset by patient id
+    # example dataset
+    # [patient_id="92", 30 days, num_fibroids=5, fibroid_volume_ratio=0.76, patient_weight=60kg, flow_intensity=high, pain_level=4, treatment="blah"] 
+    # maybe like 5-10 rows per patient with different time intervals. the time column can be in units of days
+    # use the verhulst equation with the decay modifier to make up values for this i think
+    # dV/dt = r * V * (1 - V/K) - d * V
+    # closed form: V(t) = K / (1 + ((K - V0) / V0) * exp(-(r - d) * t))
+    df = pd.read_csv("umd_data_categorical.csv")
+    
+    # growth/decay parameters
+    r = 0.008  # base daily growth rate (slow — fibroids grow over months/years)
+    K = 1.0    # carrying capacity (max volume ratio)
+    
+    # treatment-dependent decay rates
+    # d > r means shrinkage, d < r means slower growth, d = 0 means no treatment effect
+    decay_rates = {
+        "none": 0.0,
+        "hormonal": 0.012,   # slightly greater than r → slow shrinkage
+        "surgery": 0.035     # much greater than r → fast shrinkage
+    }
+    
+    # time points in days — unevenly spaced like real clinical checkups
+    all_time_points = [0.0, 30.0, 60.0, 90.0, 120.0, 180.0, 270.0, 365.0, 540.0, 730.0]
+    
+    rows = []
+    
+    for _, patient in df.iterrows():
+        pid = patient["patient_id"]
+        V0 = patient["fibroid_volume_ratio"]
+        
+        # skip patients with no fibroids — nothing to model
+        if V0 <= 0.001:
+            continue
+        
+        # figure out treatment type from one-hot columns
+        if patient.get("treatment_type_surgery", 0) == 1:
+            treatment = "surgery"
+        elif patient.get("treatment_type_hormonal", 0) == 1:
+            treatment = "hormonal"
+        else:
+            treatment = "none"
+        
+        d = decay_rates[treatment]
+        effective_rate = r - d  # positive = growth, negative = shrinkage
+        
+        # pick which time points this patient has observations at
+        # randomly keep 3-5 time points per patient (simulates sparse clinical data)
+        n_obs = random.randint(3, 5)
+        time_points = sorted(random.sample(all_time_points, n_obs))
+        # always include t=0 as the initial observation
+        if 0 not in time_points:
+            time_points = [0] + time_points[:n_obs - 1]
+        
+        for t in time_points:
+            # modified Verhulst closed-form solution
+            if abs(effective_rate) < 1e-10:
+                # edge case: r ≈ d, no net growth or shrinkage
+                V_t = V0
+            else:
+                denom = 1 + ((K - V0) / V0) * np.exp(-effective_rate * t)
+                V_t = K / denom
+            
+            # add Gaussian noise to simulate measurement error (ultrasound isn't perfect)
+            noise = np.random.normal(0, 0.02)
+            V_t = np.clip(V_t + noise, 0.0, 1.0)
+            
+            rows.append({
+                "patient_id": pid,
+                "t_days": t,
+                "fibroid_volume_ratio": round(V_t, 4),
+                "num_fibroids": patient["num_fibroids"],
+                "patient_weight": patient.get("patient_weight", None),
+                "pain_level": float(patient.get("pain_level", None)),
+                "age_group_encoded": patient.get("age_group_encoded", None),
+                "treatment_type": treatment,
+                "effective_rate": round(effective_rate, 4)
+            })
+    
+    result = pd.DataFrame(rows)
+    result.to_csv("pinn_fibroid_growth.csv", index=False)
+    print(f"generated {len(result)} rows for {result['patient_id'].nunique()} patients")
+    print(f"columns: {list(result.columns)}")
+    print(f"sample:\n{result.head(10)}")
+    return result
 
-extract_mri_data()
+# extract_mri_data()
+fibroid_growth_dataset()
 # generate_hormonal_timeseries()
