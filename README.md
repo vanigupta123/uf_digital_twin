@@ -41,7 +41,7 @@ where k = decay rate.
 i used the closed form of the decay function to generate the synthetic dataset of tumor growth/shrinkage based on different treatments, which have different corresponding decay rates. the residual of this equation is used when finding the loss function:
 
 $$
-loss = MSE(V) + \lambda MSE(residual),   \text{  where residual} = \frac{dV}{dt} - rV(1 - \frac{V}{K})
+loss = MSE(V) + \lambda MSE(residual),   \text{  where residual} = \frac{dV}{dt} - rV(1 - \frac{V}{K}) + kV
 $$
 
 ## preprocessing 
