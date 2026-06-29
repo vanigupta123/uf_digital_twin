@@ -1,6 +1,9 @@
 # digital twin simulating uterine myomas/fibroids
 uterine fibroids affect 70% of women before they reach menopause, with around 40% of women being symptomatic, meaning they experience significant pain, heavy bleeding, and fertility issues. most treatments to this issue include hormone therapy and invasive surgeries, and these hormone therapies can cause numerous detrimental side effects. despite these challenges, the research done in the women's healthcare field is lacking and especially doesn't explore more natural and less invasive treatments to these reproductive issues. this project is an attempt to simulate how potential treatments that are less researched impact the fibroids.
 
+## data sources 
+the MRI dataset comes from the UMD dataset, linked [here](https://www.nature.com/articles/s41597-024-03170-x). i was not, however, able to find good datasets showing sex hormones across a menstrual cycle and certainly wasn't able to find a categorical dataset of any sort with significant or helpful information for this project, in part due to a lack of study or due to data sharing restrictions :(. to compensate for this, i've built the hormonal dataset and categorical treatment dataset synthetically and based upon published physiology. i injected some sparsity/missigness within the data so it's realistic and emulates real, questionably reliable data, so some data points that would be self-reported or retrieved from blood tests are missing.
+
 ## approach 
 this project has two segments, both built upon largely synthetic/generated datasets:
 
@@ -49,6 +52,8 @@ the MRI volumes are downsampled to 128×128×5, which is small enough to keep co
 
 the hormonal and categorical datasets are normalized using standard scaling and one-hot encoded for categorical variables.
 
+`preprocess.py` implements this and also generates the datasets.
+
 ## models
 `mlp_categorical.py` is a simple binary classification model that determines whether someone likely has fibroids or not, based on a categorical dataset containing data for pain level, cycle length, ferritin level, etc. this dataset is intentionally sparse so it can be used for an ml systems project that decides when the model should abstain from making a decision at inference time, due to data unreliability. project is linked [here](https://github.com/vanigupta123/data-decision-maker)
 
@@ -70,6 +75,4 @@ then run whichever model you want within `\models`! ex:
 ```
 python models/pinn.py
 ```
-
-## data sources 
-the MRI dataset comes from the UMD dataset, linked [here](https://www.nature.com/articles/s41597-024-03170-x). i was not, however, able to find good datasets showing sex hormones across a menstrual cycle and certainly wasn't able to find a categorical dataset of any sort with significant or helpful information for this project, in part due to a lack of study or due to data sharing restrictions :(. to compensate for this, i've built the hormonal dataset and categorical treatment dataset synthetically and based upon published physiology. i injected some sparsity/missigness within the data so it's realistic and emulates real, questionably reliable data, so some data points that would be self-reported or retrieved from blood tests are missing.
+note: some of this will break locally unless you download the UMD dataset. info for that is in the `data sources` section above.
