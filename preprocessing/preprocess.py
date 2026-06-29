@@ -260,7 +260,7 @@ def extract_mri_data():
                     record["fibroid_volume_ratio"] = ratio
 
                 except Exception as e:
-                    pass
+                    pass #TODO: handle this error
 
         # downsample
         if t2_data is not None and seg_data is not None:
