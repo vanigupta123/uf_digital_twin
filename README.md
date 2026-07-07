@@ -55,10 +55,13 @@ the hormonal and categorical datasets are normalized using standard scaling and 
 `preprocess.py` implements this and also generates the datasets.
 
 ## models
-`mlp_categorical.py` is a simple binary classification model that determines whether someone likely has fibroids or not, based on a categorical dataset containing data for pain level, cycle length, ferritin level, etc. this dataset is intentionally sparse so it can be used for an ml systems project that decides when the model should abstain from making a decision at inference time, due to data unreliability. project is linked [here](https://github.com/vanigupta123/data-decision-maker)
+`mlp_categorical.py` is a simple binary classification model that determines whether someone likely has fibroids or not, based on a categorical dataset containing data for pain level, cycle length, ferritin level, etc. this dataset is intentionally sparse so it can be used for an ml systems project that decides when the model should abstain from making a decision at inference time, due to data unreliability. project is linked [here](https://github.com/vanigupta123/data-decision-maker).
+
+this model has an accuracy of 96.61%.
 
 `pinn.py` implements the pinn described above in approach > "predicting tumor response to treatment using physics-informed neural networks".
 
+this model has the following results: mse=0.0266, mae=0.1129, r2=0.1911.
 ## limitations & honest framing 
 while this project explores how potential treatments may impact fibroids, it doesn't take any of the woman's other body systems into account.
 
